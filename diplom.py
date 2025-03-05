@@ -5,12 +5,6 @@ import platform
 import time
 from flask import Flask, jsonify, abort
 import requests
-import logging
-
-
-LOG_FILE = "agent_update.log" # Конфиг логов
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 app = Flask(__name__)
 
@@ -20,45 +14,35 @@ users = [
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
 
-REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/diplom.py" # URL репозитория с кодом агента
+REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/diplom.py"  # URL репозитория с кодом агента
 LOCAL_SCRIPT_PATH = "agent.py"
 RESTART_FLAG_PATH = "restart.flag"  # Файл-флаг для контроля перезапуска
 
+# Функция для скачивания последней версии скрипта
 def update_agent():
-    logging.info("Starting to download agent script from: %s", REPO_URL)
     response = requests.get(REPO_URL)
     if response.status_code == 200:
         response.encoding = 'utf-8'
         try:
             with open(LOCAL_SCRIPT_PATH, 'w', encoding='utf-8') as f:
                 f.write(response.text)
-            logging.info("Agent script downloaded and saved to: %s", LOCAL_SCRIPT_PATH)
             return True
         except Exception as e:
-            logging.error("Error writing file: %s", e)
             return False
-    else:
-        logging.error("Failed to download agent script. HTTP status code: %d", response.status_code)
     return False
 
-# Функция для перезапуска агента
 def restart_agent():
     if os.path.exists(RESTART_FLAG_PATH):
-        logging.warning("Agent is already restarted. Skipping restart.")
         return
 
     with open(RESTART_FLAG_PATH, 'w') as flag_file:
         flag_file.write("restarted")
-    logging.info("Restart flag created: %s", RESTART_FLAG_PATH)
 
-    logging.info("Restarting agent by launching: %s", LOCAL_SCRIPT_PATH)
     subprocess.Popen(["python", LOCAL_SCRIPT_PATH])
-    logging.info("Current agent process exiting.")
     os._exit(0)
 
 @app.route('/update', methods=['GET'])
 def update():
-    logging.info("Received update request.")
     if update_agent():
         restart_agent()
         return jsonify({"message": "Agent updated and restarted."})
