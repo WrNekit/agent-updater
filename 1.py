@@ -205,7 +205,7 @@ def check_for_updates():
             "latest_version": latest_version,
             # В реальном случае этот URL должен указывать на файл с обновлением,
             # например, на raw-версию файла с GitHub или на сервер обновлений.
-            "update_url": "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/test.py"
+            "update_url": "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/1.py"
         }
     else:
         return {"update_available": False}
