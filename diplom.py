@@ -4,6 +4,9 @@ import psutil
 import platform
 import time
 import threading
+import sys
+import shutil
+import requests  # Требуется установить: pip install requests
 from flask import Flask, jsonify, abort
 
 app = Flask(__name__)
@@ -77,15 +80,12 @@ def get_users():
 
 def get_user_directories():
     system = platform.system().lower()
-    
     if system == 'windows':
         user_dirs = [d for d in os.listdir("C:/Users") if os.path.isdir(os.path.join("C:/Users", d))]
         return user_dirs
-
     elif system == 'linux':
         user_dirs = [d for d in os.listdir("/home") if os.path.isdir(os.path.join("/home", d))]
         return user_dirs
-
     return []
 
 # Основные endpoints (список пользователей, метрики, директории, сервисы)
@@ -99,10 +99,8 @@ def connect_to_user(username):
     user = next((u for u in get_users() if u['name'] == username), None)
     if not user:
         abort(404, description="User not found")
-
     user_metrics = get_metrics()
     user_dirs = get_user_directories()
-    
     return jsonify({
         "user": user,
         "metrics": user_metrics,
@@ -114,9 +112,7 @@ def connect_to_user_metric(username, metric_name):
     user = next((u for u in get_users() if u['name'] == username), None)
     if not user:
         abort(404, description="User not found")
-
     metrics_data = get_metrics()
-
     if metric_name in metrics_data:
         return jsonify({metric_name: metrics_data[metric_name]})
     else:
@@ -128,7 +124,6 @@ def connect_to_user_directories(username):
     if not user:
         abort(404, description="User not found")
     user_dirs = get_user_directories()
-
     return jsonify({"directories": user_dirs})
 
 @app.route('/metrics/cpu', methods=['GET'])
@@ -176,7 +171,7 @@ def get_services():
                 "display_name": service.display_name()
             })
     elif platform.system().lower() == "linux":
-        result = subprocess.run(["systemctl", "list-units", "--type=service", "--no-pager", "--no-legend"], 
+        result = subprocess.run(["systemctl", "list-units", "--type=service", "--no-pager", "--no-legend"],
                                 stdout=subprocess.PIPE, text=True)
         for line in result.stdout.splitlines():
             parts = line.split()
@@ -201,31 +196,53 @@ def check_for_updates():
     Имитация проверки обновлений.
     В реальной реализации можно отправить HTTP-запрос к центральному серверу,
     который возвращает последнюю версию и URL для обновления.
+    Здесь для примера считаем, что доступна версия 1.0.1.
     """
-    # Для примера считаем, что доступна версия 1.0.1
     latest_version = "1.0.1"
     if latest_version > CURRENT_VERSION:
         return {
             "update_available": True,
             "latest_version": latest_version,
-            "update_url": "http://example.com/update"  # URL для скачивания обновления
+            # В реальном случае этот URL должен указывать на файл с обновлением,
+            # например, на raw-версию файла с GitHub или на сервер обновлений.
+            "update_url": "http://example.com/path/to/new/diplom.py"
         }
     else:
         return {"update_available": False}
 
 def perform_update(update_url):
     """
-    Функция, выполняющая обновление.
-    Здесь можно реализовать логику скачивания новой версии, резервного копирования и перезапуска приложения.
+    Функция для выполнения обновления.
+    Реализована полная схема:
+      1. Скачивание новой версии через HTTP.
+      2. Сохранение в временный файл.
+      3. Создание резервной копии текущего файла.
+      4. Замена текущего файла новым.
+      5. Перезапуск приложения.
     """
     print("Начало обновления с URL:", update_url)
-    # Реальная логика обновления должна включать проверку целостности, резервное копирование и т.д.
-    # Например:
-    # - Скачивание обновления
-    # - Распаковка и замена файлов
-    # - Перезапуск приложения
-    time.sleep(5)  # Имитация времени на обновление
-    print("Обновление завершено. Новая версия установлена.")
+    try:
+        # Скачивание обновления
+        response = requests.get(update_url, timeout=30)
+        if response.status_code != 200:
+            print("Ошибка скачивания обновления, статус:", response.status_code)
+            return
+        new_code = response.content
+        # Запись новой версии во временный файл
+        new_file = "diplom_new.py"
+        with open(new_file, "wb") as f:
+            f.write(new_code)
+        # Создание резервной копии текущего файла
+        current_file = os.path.abspath(__file__)
+        backup_file = current_file + ".bak"
+        shutil.copy2(current_file, backup_file)
+        # Замена текущего файла новым файлом
+        shutil.move(new_file, current_file)
+        print("Обновление завершено. Новая версия установлена. Перезапуск приложения...")
+        # Перезапуск приложения
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    except Exception as e:
+        print("Ошибка при обновлении:", str(e))
 
 # Endpoint для проверки и запуска обновления
 @app.route('/update', methods=['POST'])
@@ -247,7 +264,7 @@ def background_update_checker():
         update_info = check_for_updates()
         if update_info["update_available"]:
             print("Фоновая проверка: обнаружено обновление:", update_info)
-            # При необходимости можно автоматически запускать обновление:
+            # Если нужно, можно автоматически запускать обновление:
             # threading.Thread(target=perform_update, args=(update_info["update_url"],)).start()
         time.sleep(UPDATE_CHECK_INTERVAL)
 
