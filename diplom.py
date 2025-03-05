@@ -205,7 +205,7 @@ def check_for_updates():
             "latest_version": latest_version,
             # В реальном случае этот URL должен указывать на файл с обновлением,
             # например, на raw-версию файла с GitHub или на сервер обновлений.
-            "update_url": "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/diplom.py"
+            "update_url": "https://github.com/WrNekit/agent-updater/blob/main/diplom.py"
         }
     else:
         return {"update_available": False}
@@ -245,7 +245,7 @@ def perform_update(update_url):
         print("Ошибка при обновлении:", str(e))
 
 # Endpoint для проверки и запуска обновления
-@app.route('/update', methods=['POST'])
+@app.route('/update', methods=['POST','GET'])
 def update_endpoint():
     update_info = check_for_updates()
     if update_info["update_available"]:
