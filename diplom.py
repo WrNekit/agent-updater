@@ -1,4 +1,4 @@
-import os
+.import os
 import subprocess
 import psutil
 import platform
@@ -14,7 +14,7 @@ users = [
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
 
-CURRENT_VERSION = "1.0.1"
+CURRENT_VERSION = "1.0.1.1"
 UPDATE_SCRIPT = "updater.pyw"
 
 def start_update():
