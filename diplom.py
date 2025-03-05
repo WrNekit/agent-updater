@@ -1,16 +1,12 @@
 import os
 import subprocess
+import psutil
 import platform
-import sys
 import time
 from flask import Flask, jsonify, abort
-import psutil
-import requests
+import sys
 
 app = Flask(__name__)
-
-CURRENT_VERSION = "1.0.1.1"
-UPDATE_SCRIPT = "updater.pyw"
 
 users = [
     {"name": "Alice", "ip": "172.19.0.1"},
@@ -18,18 +14,31 @@ users = [
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
 
+CURRENT_VERSION = "1.0.1"
+UPDATE_SCRIPT = "updater.pyw"
+
 def start_update():
-    """Запускает скрипт обновления и завершает работу текущего агента."""
-    if platform.system().lower() == "windows":
-        subprocess.Popen(["pythonw", UPDATE_SCRIPT], close_fds=True)
-    else:
-        subprocess.Popen(["python3", UPDATE_SCRIPT], close_fds=True)
+    """Запускает процесс обновления, отправляет ответ клиенту и завершает работу."""
+    try:
+        python_executable = sys.executable  # Путь к Python
+        if platform.system().lower() == "windows":
+            python_executable = python_executable.replace("python.exe", "pythonw.exe")  # Для запуска без консоли
+            subprocess.Popen([python_executable, UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["python3", UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1)  # Даем время на запуск
+    except Exception as e:
+        with open("update.log", "a") as log_file:
+            log_file.write(f"Ошибка запуска обновления: {e}\n")
+    
     sys.exit(0)  # Завершаем процесс агента
 
 @app.route('/update', methods=['GET'])
 def update():
+    """Запускает процесс обновления и отвечает клиенту перед завершением."""
+    response = {"message": "Updating agent..."}
     start_update()
-    return jsonify({"message": "Updating agent..."})
+    return jsonify(response)
 
 @app.route('/version', methods=['GET'])
 def get_version():
