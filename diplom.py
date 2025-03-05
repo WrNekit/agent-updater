@@ -9,7 +9,7 @@ import requests
 
 app = Flask(__name__)
 
-CURRENT_VERSION = "1.0.1"
+CURRENT_VERSION = "1.0.1.1"
 UPDATE_SCRIPT = "updater.pyw"
 
 users = [
