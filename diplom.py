@@ -5,6 +5,12 @@ import platform
 import time
 from flask import Flask, jsonify, abort
 import requests
+import logging
+
+
+LOG_FILE = "agent_update.log" # Конфиг логов
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 app = Flask(__name__)
 
@@ -16,39 +22,49 @@ users = [
 
 REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/diplom.py" # URL репозитория с кодом агента
 LOCAL_SCRIPT_PATH = "agent.py"
+RESTART_FLAG_PATH = "restart.flag"  # Файл-флаг для контроля перезапуска
 
-# Функция для скачивания последней версии скрипта
 def update_agent():
+    logging.info("Starting to download agent script from: %s", REPO_URL)
     response = requests.get(REPO_URL)
     if response.status_code == 200:
-        # Устанавливаем кодировку UTF-8 для текста, чтобы избежать ошибок
         response.encoding = 'utf-8'
         try:
-            # Сохраняем файл в нужной кодировке
             with open(LOCAL_SCRIPT_PATH, 'w', encoding='utf-8') as f:
                 f.write(response.text)
+            logging.info("Agent script downloaded and saved to: %s", LOCAL_SCRIPT_PATH)
             return True
         except Exception as e:
-            print(f"Error writing file: {e}")
+            logging.error("Error writing file: %s", e)
             return False
+    else:
+        logging.error("Failed to download agent script. HTTP status code: %d", response.status_code)
     return False
 
 # Функция для перезапуска агента
 def restart_agent():
-    # Запускаем новый экземпляр агента
+    if os.path.exists(RESTART_FLAG_PATH):
+        logging.warning("Agent is already restarted. Skipping restart.")
+        return
+
+    with open(RESTART_FLAG_PATH, 'w') as flag_file:
+        flag_file.write("restarted")
+    logging.info("Restart flag created: %s", RESTART_FLAG_PATH)
+
+    logging.info("Restarting agent by launching: %s", LOCAL_SCRIPT_PATH)
     subprocess.Popen(["python", LOCAL_SCRIPT_PATH])
-    # Завершаем текущий процесс
+    logging.info("Current agent process exiting.")
     os._exit(0)
 
-# Ручка для обновления агента
 @app.route('/update', methods=['GET'])
 def update():
+    logging.info("Received update request.")
     if update_agent():
         restart_agent()
         return jsonify({"message": "Agent updated and restarted."})
     else:
         abort(500, description="Failed to update agent.")
-
+        
 def convert_bytes(bytes_value):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if bytes_value < 1024.0:
