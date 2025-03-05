@@ -16,7 +16,40 @@ users = [
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
 
-REPO_URL = "https://raw.githubusercontent.com/username/repository/main/agent.py" # URL репозитория с кодом агента
+REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/diplom.py" # URL репозитория с кодом агента
+LOCAL_SCRIPT_PATH = "agent.py"
+
+# Функция для скачивания последней версии скрипта
+def update_agent():
+    response = requests.get(REPO_URL)
+    if response.status_code == 200:
+        # Устанавливаем кодировку UTF-8 для текста, чтобы избежать ошибок
+        response.encoding = 'utf-8'
+        try:
+            # Сохраняем файл в нужной кодировке
+            with open(LOCAL_SCRIPT_PATH, 'w', encoding='utf-8') as f:
+                f.write(response.text)
+            return True
+        except Exception as e:
+            print(f"Error writing file: {e}")
+            return False
+    return False
+
+# Функция для перезапуска агента
+def restart_agent():
+    # Запускаем новый экземпляр агента
+    subprocess.Popen(["python", LOCAL_SCRIPT_PATH])
+    # Завершаем текущий процесс
+    os._exit(0)
+
+# Ручка для обновления агента
+@app.route('/update', methods=['GET'])
+def update():
+    if update_agent():
+        restart_agent()
+        return jsonify({"message": "Agent updated and restarted."})
+    else:
+        abort(500, description="Failed to update agent.")
 
 def convert_bytes(bytes_value):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -192,48 +225,6 @@ def connect_to_user_services(username):
     if not user:
         abort(404, description="User not found")
     return jsonify({"user": user, "services": get_services()})
-
-# Функция для обновления агента из репозитория
-def self_update():
-    current_file = __file__
-    new_file = "agent.py"
-
-    try:
-        response = requests.get(REPO_URL)
-        if response.status_code == 200:
-            with open(new_file, "w") as f:
-                f.write(response.text)
-
-            # Запускаем новый процесс
-            subprocess.Popen(["python3", new_file])
-
-            # Завершаем старый процесс
-            os._exit(0)
-
-        else:
-            return f"Failed to download update. Status code: {response.status_code}"
-    except Exception as e:
-        return str(e)
-
-def update_all_agents():
-    update_results = {}
-    for user in users:
-        try:
-            response = requests.post(f"http://{user['ip']}:5000/self-update", timeout=5)
-            update_results[user['name']] = response.json()
-        except requests.exceptions.RequestException as e:
-            update_results[user['name']] = f"Failed to update: {str(e)}"
-    return update_results
-
-@app.route('/update', methods=['POST'])
-def update_agents():
-    result = update_all_agents()
-    return jsonify({"status": "updating all agents", "results": result})
-
-@app.route('/self-update', methods=['POST'])
-def update_self():
-    result = self_update()
-    return jsonify({"status": "self-updating", "message": result})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
