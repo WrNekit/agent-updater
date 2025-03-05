@@ -18,6 +18,8 @@ REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/m
 LOCAL_SCRIPT_PATH = "agent.py"
 RESTART_FLAG_PATH = "restart.flag"  # Файл-флаг для контроля перезапуска
 
+CURRENT_VERSION = "1.0.1.1"
+
 # Функция для скачивания последней версии скрипта
 def update_agent():
     response = requests.get(REPO_URL)
@@ -48,7 +50,12 @@ def update():
         return jsonify({"message": "Agent updated and restarted."})
     else:
         abort(500, description="Failed to update agent.")
-        
+
+@app.route('/version', methods=['GET'])
+def get_version():
+    return jsonify({
+        "current_version": CURRENT_VERSION
+    })
 def convert_bytes(bytes_value):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if bytes_value < 1024.0:
