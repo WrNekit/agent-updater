@@ -1,10 +1,17 @@
-.import os
+import os
 import subprocess
 import psutil
 import platform
 import time
+import requests
+import hashlib
+import sys  # Вот его не было, добавим для рестарта
 from flask import Flask, jsonify, abort
-import sys
+
+# URL и файлы для обновлений
+UPDATE_URL = "http://yourserver.com/agent.py"
+AGENT_FILE = __file__
+BACKUP_FILE = "agent_backup.py"
 
 app = Flask(__name__)
 
@@ -13,36 +20,6 @@ users = [
     {"name": "Bob", "ip": "192.168.1.11"},
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
-
-CURRENT_VERSION = "1.0.1.1"
-UPDATE_SCRIPT = "updater.pyw"
-
-def start_update():
-    """Запускает процесс обновления, отправляет ответ клиенту и завершает работу."""
-    try:
-        python_executable = sys.executable  # Путь к Python
-        if platform.system().lower() == "windows":
-            python_executable = python_executable.replace("python.exe", "pythonw.exe")  # Для запуска без консоли
-            subprocess.Popen([python_executable, UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.Popen(["python3", UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(1)  # Даем время на запуск
-    except Exception as e:
-        with open("update.log", "a") as log_file:
-            log_file.write(f"Ошибка запуска обновления: {e}\n")
-    
-    sys.exit(0)  # Завершаем процесс агента
-
-@app.route('/update', methods=['GET'])
-def update():
-    """Запускает процесс обновления и отвечает клиенту перед завершением."""
-    response = {"message": "Updating agent..."}
-    start_update()
-    return jsonify(response)
-
-@app.route('/version', methods=['GET'])
-def get_version():
-    return jsonify({"current_version": CURRENT_VERSION})
 
 def convert_bytes(bytes_value):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -218,6 +195,57 @@ def connect_to_user_services(username):
     if not user:
         abort(404, description="User not found")
     return jsonify({"user": user, "services": get_services()})
+
+def get_file_hash(file_path):
+    if not os.path.exists(file_path):
+        return None
+    hasher = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+def download_update():
+    try:
+        response = requests.get(UPDATE_URL, timeout=10)
+        if response.status_code == 200:
+            new_content = response.content
+            new_hash = hashlib.sha256(new_content).hexdigest()
+            current_hash = get_file_hash(AGENT_FILE)
+
+            if current_hash == new_hash:
+                print("✅ Уже самая новая версия.")
+                return False
+
+            os.rename(AGENT_FILE, BACKUP_FILE)
+
+            with open(AGENT_FILE, "wb") as f:
+                f.write(new_content)
+
+            print("✅ Обновлено!")
+            return True
+        else:
+            print(f"❌ Ошибка загрузки: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Ошибка обновления: {e}")
+        return False
+
+def restart_agent():
+    python = sys.executable
+    os.execl(python, python, AGENT_FILE)
+
+def self_update():
+    if download_update():
+        print("🔄 Перезапуск агента после обновления...")
+        time.sleep(2)
+        restart_agent()
+
+@app.route('/update', methods=['GET'])
+def update():
+    if self_update():
+        return jsonify({"message": "Агент обновился и сейчас перезапустится."})
+    return jsonify({"message": "Уже актуальная версия."})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
