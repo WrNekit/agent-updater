@@ -1,13 +1,16 @@
 import os
 import subprocess
-import psutil
 import platform
+import sys
 import time
 from flask import Flask, jsonify, abort
+import psutil
 import requests
-import sys
 
 app = Flask(__name__)
+
+CURRENT_VERSION = "1.0.1"
+UPDATE_SCRIPT = "updater.pyw"
 
 users = [
     {"name": "Alice", "ip": "172.19.0.1"},
@@ -15,51 +18,22 @@ users = [
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
 
-REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/diplom.py"  # URL репозитория с кодом агента
-VERSION_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/version.txt"  # URL версии агента в репозитории
-LOCAL_SCRIPT_PATH = "agent.pyw"  # .pyw для запуска без консоли
-
-CURRENT_VERSION = "1.0.1"  # Текущая версия агента, которую вы указали в коде
-
-# Функция для скачивания последней версии скрипта
-def update_agent():
-    response = requests.get(REPO_URL)
-    if response.status_code == 200:
-        response.encoding = 'utf-8'
-        try:
-            with open(LOCAL_SCRIPT_PATH, 'w', encoding='utf-8') as f:
-                f.write(response.text)
-            return True
-        except Exception as e:
-            return False
-    return False
-
-# Функция для перезапуска агента
-def restart_agent():
-    # Завершаем текущий процесс и перезапускаем его с pythonw
-    if platform.system().lower() == 'windows':
-        # Если это Windows, используем pythonw.exe для запуска без консоли
-        executable = sys.executable.replace('python.exe', 'pythonw.exe')
-        os.execv(executable, [executable] + [LOCAL_SCRIPT_PATH])
+def start_update():
+    """Запускает скрипт обновления и завершает работу текущего агента."""
+    if platform.system().lower() == "windows":
+        subprocess.Popen(["pythonw", UPDATE_SCRIPT], close_fds=True)
     else:
-        # Если это не Windows, используем стандартный запуск
-        os.execv(sys.executable, ['python'] + [LOCAL_SCRIPT_PATH])
+        subprocess.Popen(["python3", UPDATE_SCRIPT], close_fds=True)
+    sys.exit(0)  # Завершаем процесс агента
 
-# Ручка для получения версии агента
-@app.route('/version', methods=['GET'])
-def get_version():
-    return jsonify({
-        "current_version": CURRENT_VERSION
-    })
-
-# Ручка для обновления агента
 @app.route('/update', methods=['GET'])
 def update():
-    if update_agent():
-        restart_agent()
-        return jsonify({"message": "Agent updated and restarted."})
-    else:
-        abort(500, description="Failed to update agent.")
+    start_update()
+    return jsonify({"message": "Updating agent..."})
+
+@app.route('/version', methods=['GET'])
+def get_version():
+    return jsonify({"current_version": CURRENT_VERSION})
 
 def convert_bytes(bytes_value):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -114,6 +88,22 @@ def get_metrics():
 
     return metrics
 
+def get_users():
+    return users
+
+def get_user_directories():
+    system = platform.system().lower()
+    
+    if system == 'windows':
+        user_dirs = [d for d in os.listdir("C:/Users") if os.path.isdir(os.path.join("C:/Users", d))]
+        return user_dirs
+
+    elif system == 'linux':
+        user_dirs = [d for d in os.listdir("/home") if os.path.isdir(os.path.join("/home", d))]
+        return user_dirs
+
+    return []
+
 @app.route('/users', methods=['GET'])
 def list_users():
     users_list = get_users()
@@ -127,17 +117,98 @@ def connect_to_user(username):
 
     user_metrics = get_metrics()
     user_dirs = get_user_directories()
-
+    
     return jsonify({
         "user": user,
         "metrics": user_metrics,
         "directories": user_dirs
     })
 
+@app.route('/connect/<username>/<metric_name>', methods=['GET'])
+def connect_to_user_metric(username, metric_name):
+    user = next((u for u in get_users() if u['name'] == username), None)
+    if not user:
+        abort(404, description="User not found")
+
+    metrics_data = get_metrics()
+
+    if metric_name in metrics_data:
+        return jsonify({metric_name: metrics_data[metric_name]})
+    else:
+        abort(404, description="Metric not found")
+
+@app.route('/connect/<username>/directories', methods=['GET'])
+def connect_to_user_directories(username):
+    user = next((u for u in get_users() if u['name'] == username), None)
+    if not user:
+        abort(404, description="User not found")
+    user_dirs = get_user_directories()
+
+    return jsonify({"directories": user_dirs})
+
 @app.route('/metrics/cpu', methods=['GET'])
 def get_cpu_metrics():
     metrics_data = get_metrics()
     return jsonify({"cpu": metrics_data["cpu"]})
+
+@app.route('/metrics/memory', methods=['GET'])
+def get_memory_metrics():
+    metrics_data = get_metrics()
+    return jsonify({"memory": metrics_data["memory"]})
+
+@app.route('/metrics/disk', methods=['GET'])
+def get_disk_metrics():
+    metrics_data = get_metrics()
+    return jsonify({"disk": metrics_data["disk"]})
+
+@app.route('/metrics/processes', methods=['GET'])
+def get_processes_metrics():
+    metrics_data = get_metrics()
+    return jsonify({"processes": metrics_data["processes"]})
+
+@app.route('/metrics/system_info', methods=['GET'])
+def get_system_info_metrics():
+    metrics_data = get_metrics()
+    return jsonify({"system_info": metrics_data["system_info"]})
+
+@app.route('/metrics/list', methods=['GET'])
+def list_metrics():
+    available_metrics = ["cpu", "memory", "disk", "processes", "system_info"]
+    return jsonify({"available_metrics": available_metrics})
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    metrics_data = get_metrics()
+    return jsonify(metrics_data)
+
+def get_services():
+    services = []
+    if platform.system().lower() == "windows":
+        for service in psutil.win_service_iter():
+            services.append({
+                "name": service.name(),
+                "status": service.status(),
+                "display_name": service.display_name()
+            })
+    elif platform.system().lower() == "linux":
+        result = subprocess.run(["systemctl", "list-units", "--type=service", "--no-pager", "--no-legend"], 
+                                stdout=subprocess.PIPE, text=True)
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) > 1:
+                services.append({"name": parts[0], "status": parts[2]})
+    return services
+
+@app.route('/services', methods=['GET'])
+def list_services():
+    return jsonify({"services": get_services()})
+
+@app.route('/connect/<username>/services', methods=['GET'])
+def connect_to_user_services(username):
+    user = next((u for u in get_users() if u['name'] == username), None)
+    if not user:
+        abort(404, description="User not found")
+    return jsonify({"user": user, "services": get_services()})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
