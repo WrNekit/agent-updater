@@ -3,23 +3,21 @@ import subprocess
 import psutil
 import platform
 import time
-import requests
-import hashlib
-import sys  # Вот его не было, добавим для рестарта
+import threading
 from flask import Flask, jsonify, abort
-
-# URL и файлы для обновлений
-UPDATE_URL = "http://yourserver.com/agent.py"
-AGENT_FILE = __file__
-BACKUP_FILE = "agent_backup.py"
 
 app = Flask(__name__)
 
+# Пример пользователей
 users = [
     {"name": "Alice", "ip": "172.19.0.1"},
     {"name": "Bob", "ip": "192.168.1.11"},
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
+
+# Текущая версия приложения
+CURRENT_VERSION = "1.0.0"
+UPDATE_CHECK_INTERVAL = 60  # интервал проверки обновлений в секундах
 
 def convert_bytes(bytes_value):
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -90,6 +88,7 @@ def get_user_directories():
 
     return []
 
+# Основные endpoints (список пользователей, метрики, директории, сервисы)
 @app.route('/users', methods=['GET'])
 def list_users():
     users_list = get_users()
@@ -196,56 +195,63 @@ def connect_to_user_services(username):
         abort(404, description="User not found")
     return jsonify({"user": user, "services": get_services()})
 
-def get_file_hash(file_path):
-    if not os.path.exists(file_path):
-        return None
-    hasher = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+# Функции для проверки и выполнения обновления
+def check_for_updates():
+    """
+    Имитация проверки обновлений.
+    В реальной реализации можно отправить HTTP-запрос к центральному серверу,
+    который возвращает последнюю версию и URL для обновления.
+    """
+    # Для примера считаем, что доступна версия 1.0.1
+    latest_version = "1.0.1"
+    if latest_version > CURRENT_VERSION:
+        return {
+            "update_available": True,
+            "latest_version": latest_version,
+            "update_url": "http://example.com/update"  # URL для скачивания обновления
+        }
+    else:
+        return {"update_available": False}
 
-def download_update():
-    try:
-        response = requests.get(UPDATE_URL, timeout=10)
-        if response.status_code == 200:
-            new_content = response.content
-            new_hash = hashlib.sha256(new_content).hexdigest()
-            current_hash = get_file_hash(AGENT_FILE)
+def perform_update(update_url):
+    """
+    Функция, выполняющая обновление.
+    Здесь можно реализовать логику скачивания новой версии, резервного копирования и перезапуска приложения.
+    """
+    print("Начало обновления с URL:", update_url)
+    # Реальная логика обновления должна включать проверку целостности, резервное копирование и т.д.
+    # Например:
+    # - Скачивание обновления
+    # - Распаковка и замена файлов
+    # - Перезапуск приложения
+    time.sleep(5)  # Имитация времени на обновление
+    print("Обновление завершено. Новая версия установлена.")
 
-            if current_hash == new_hash:
-                print("✅ Уже самая новая версия.")
-                return False
+# Endpoint для проверки и запуска обновления
+@app.route('/update', methods=['POST'])
+def update_endpoint():
+    update_info = check_for_updates()
+    if update_info["update_available"]:
+        # Запускаем процесс обновления в отдельном потоке, чтобы не блокировать endpoint
+        threading.Thread(target=perform_update, args=(update_info["update_url"],)).start()
+        return jsonify({
+            "message": "Процесс обновления запущен",
+            "latest_version": update_info["latest_version"]
+        }), 200
+    else:
+        return jsonify({"message": "Обновлений не обнаружено"}), 200
 
-            os.rename(AGENT_FILE, BACKUP_FILE)
-
-            with open(AGENT_FILE, "wb") as f:
-                f.write(new_content)
-
-            print("✅ Обновлено!")
-            return True
-        else:
-            print(f"❌ Ошибка загрузки: {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Ошибка обновления: {e}")
-        return False
-
-def restart_agent():
-    python = sys.executable
-    os.execl(python, python, AGENT_FILE)
-
-def self_update():
-    if download_update():
-        print("🔄 Перезапуск агента после обновления...")
-        time.sleep(2)
-        restart_agent()
-
-@app.route('/update', methods=['GET'])
-def update():
-    if self_update():
-        return jsonify({"message": "Агент обновился и сейчас перезапустится."})
-    return jsonify({"message": "Уже актуальная версия."})
+# Фоновая задача для периодической проверки обновлений
+def background_update_checker():
+    while True:
+        update_info = check_for_updates()
+        if update_info["update_available"]:
+            print("Фоновая проверка: обнаружено обновление:", update_info)
+            # При необходимости можно автоматически запускать обновление:
+            # threading.Thread(target=perform_update, args=(update_info["update_url"],)).start()
+        time.sleep(UPDATE_CHECK_INTERVAL)
 
 if __name__ == '__main__':
+    # Запуск фоновой задачи в отдельном потоке (daemon-поток завершится при остановке приложения)
+    threading.Thread(target=background_update_checker, daemon=True).start()
     app.run(host='0.0.0.0', port=5000)
