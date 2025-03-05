@@ -6,7 +6,7 @@ import time
 import threading
 import sys
 import shutil
-import requests  # Требуется установить: pip install requests
+import requests
 from flask import Flask, jsonify, abort
 
 app = Flask(__name__)
