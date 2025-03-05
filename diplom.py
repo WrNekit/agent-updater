@@ -19,7 +19,7 @@ REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/m
 LOCAL_SCRIPT_PATH = "agent.py"
 RESTART_FLAG_PATH = "restart.flag"  # Файл-флаг для контроля перезапуска
 
-CURRENT_VERSION = "1.0.1"
+CURRENT_VERSION = "1.0.1.1"
 
 # Функция для скачивания последней версии скрипта
 def update_agent():
