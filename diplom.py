@@ -5,6 +5,7 @@ import platform
 import time
 from flask import Flask, jsonify, abort
 import requests
+import sys
 
 app = Flask(__name__)
 
@@ -18,7 +19,7 @@ REPO_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/m
 LOCAL_SCRIPT_PATH = "agent.py"
 RESTART_FLAG_PATH = "restart.flag"  # Файл-флаг для контроля перезапуска
 
-CURRENT_VERSION = "1.0.1.1"
+CURRENT_VERSION = "1.0.1"
 
 # Функция для скачивания последней версии скрипта
 def update_agent():
@@ -33,16 +34,12 @@ def update_agent():
             return False
     return False
 
+# Функция для перезапуска агента
 def restart_agent():
-    if os.path.exists(RESTART_FLAG_PATH):
-        return
+    # Завершаем текущий процесс и перезапускаем его
+    os.execv(sys.executable, ['python'] + sys.argv)
 
-    with open(RESTART_FLAG_PATH, 'w') as flag_file:
-        flag_file.write("restarted")
-
-    subprocess.Popen(["python", LOCAL_SCRIPT_PATH])
-    os._exit(0)
-
+# Ручка для обновления агента
 @app.route('/update', methods=['GET'])
 def update():
     if update_agent():
