@@ -7,7 +7,6 @@ import threading
 import sys
 import shutil
 import requests  # Требуется установить: pip install requests
-import hashlib
 from flask import Flask, jsonify, abort
 
 app = Flask(__name__)
@@ -19,8 +18,8 @@ users = [
     {"name": "Charlie", "ip": "192.168.1.12"}
 ]
 
-# URL обновления (должен указывать на raw-версию нового кода)
-UPDATE_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/3.py"
+# Текущая версия приложения
+CURRENT_VERSION = "1.0.0"
 UPDATE_CHECK_INTERVAL = 60  # интервал проверки обновлений в секундах
 
 def convert_bytes(bytes_value):
@@ -45,6 +44,7 @@ def get_metrics():
         })
 
     last_update = time.strftime('%Y-%m-%d %H:%M:%S')
+
     metrics = {
         "last_update": last_update,
         "system_info": {
@@ -72,6 +72,7 @@ def get_metrics():
         },
         "processes": processes
     }
+
     return metrics
 
 def get_users():
@@ -189,67 +190,44 @@ def connect_to_user_services(username):
         abort(404, description="User not found")
     return jsonify({"user": user, "services": get_services()})
 
-# Функция вычисления хэша для данных
-def compute_hash(data):
-    hash_func = hashlib.sha256()
-    hash_func.update(data)
-    return hash_func.hexdigest()
-
-def file_hash(filename):
-    with open(filename, "rb") as f:
-        return compute_hash(f.read())
-
-def code_has_changed(new_code):
-    current_file = os.path.abspath(__file__)
-    try:
-        current_code = open(current_file, "rb").read()
-        current_hash = compute_hash(current_code)
-        new_hash = compute_hash(new_code)
-        return current_hash != new_hash, current_hash, new_hash
-    except Exception as e:
-        print("Ошибка при вычислении хэша:", e)
-        return True, None, None
-
-# Функция проверки обновлений с сравнением по хэшу
+# Функции для проверки и выполнения обновления
 def check_for_updates():
-    try:
-        response = requests.get(UPDATE_URL, timeout=30)
-        if response.status_code != 200:
-            print("Ошибка скачивания обновления, статус:", response.status_code)
-            return {"update_available": False, "error": f"HTTP {response.status_code}"}
-        new_code = response.content
-        changed, current_hash, new_hash = code_has_changed(new_code)
-        if changed:
-            return {
-                "update_available": True,
-                "current_hash": current_hash,
-                "new_hash": new_hash,
-                "update_url": UPDATE_URL
-            }
-        else:
-            return {"update_available": False}
-    except Exception as e:
-        print("Ошибка при проверке обновлений:", str(e))
-        return {"update_available": False, "error": str(e)}
+    """
+    Имитация проверки обновлений.
+    В реальной реализации можно отправить HTTP-запрос к центральному серверу,
+    который возвращает последнюю версию и URL для обновления.
+    Здесь для примера считаем, что доступна версия 1.0.1.
+    """
+    latest_version = "1.0.1"
+    if latest_version > CURRENT_VERSION:
+        return {
+            "update_available": True,
+            "latest_version": latest_version,
+            # В реальном случае этот URL должен указывать на файл с обновлением,
+            # например, на raw-версию файла с GitHub или на сервер обновлений.
+            "update_url": "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/1.py"
+        }
+    else:
+        return {"update_available": False}
 
-# Функция для отложенного перезапуска приложения
-def delayed_restart(delay=2):
-    time.sleep(delay)
-    os.execv(sys.executable, [sys.executable] + sys.argv)
-
-# Функция выполнения обновления
 def perform_update(update_url):
+    """
+    Функция для выполнения обновления.
+    Реализована полная схема:
+      1. Скачивание новой версии через HTTP.
+      2. Сохранение в временный файл.
+      3. Создание резервной копии текущего файла.
+      4. Замена текущего файла новым.
+      5. Перезапуск приложения.
+    """
     print("Начало обновления с URL:", update_url)
     try:
+        # Скачивание обновления
         response = requests.get(update_url, timeout=30)
         if response.status_code != 200:
             print("Ошибка скачивания обновления, статус:", response.status_code)
             return
         new_code = response.content
-        changed, current_hash, new_hash = code_has_changed(new_code)
-        if not changed:
-            print("Код не изменился. Обновление не требуется.")
-            return
         # Запись новой версии во временный файл
         new_file = "diplom_new.py"
         with open(new_file, "wb") as f:
@@ -261,22 +239,21 @@ def perform_update(update_url):
         # Замена текущего файла новым файлом
         shutil.move(new_file, current_file)
         print("Обновление завершено. Новая версия установлена. Перезапуск приложения...")
-        # Запускаем перезапуск через 2 секунды в отдельном потоке, чтобы успеть вернуть HTTP-ответ
-        threading.Thread(target=delayed_restart, args=(2,)).start()
+        # Перезапуск приложения
+        os.execv(sys.executable, [sys.executable] + sys.argv)
     except Exception as e:
         print("Ошибка при обновлении:", str(e))
 
 # Endpoint для проверки и запуска обновления
-@app.route('/update', methods=['POST', 'GET'])
+@app.route('/update', methods=['POST','GET'])
 def update_endpoint():
     update_info = check_for_updates()
-    if update_info.get("update_available"):
-        # Запуск обновления в отдельном потоке, чтобы не блокировать endpoint
+    if update_info["update_available"]:
+        # Запускаем процесс обновления в отдельном потоке, чтобы не блокировать endpoint
         threading.Thread(target=perform_update, args=(update_info["update_url"],)).start()
         return jsonify({
             "message": "Процесс обновления запущен",
-            "current_hash": update_info.get("current_hash"),
-            "new_hash": update_info.get("new_hash")
+            "latest_version": update_info["latest_version"]
         }), 200
     else:
         return jsonify({"message": "Обновлений не обнаружено"}), 200
@@ -285,9 +262,9 @@ def update_endpoint():
 def background_update_checker():
     while True:
         update_info = check_for_updates()
-        if update_info.get("update_available"):
+        if update_info["update_available"]:
             print("Фоновая проверка: обнаружено обновление:", update_info)
-            # Можно автоматически запускать обновление:
+            # Если нужно, можно автоматически запускать обновление:
             # threading.Thread(target=perform_update, args=(update_info["update_url"],)).start()
         time.sleep(UPDATE_CHECK_INTERVAL)
 
