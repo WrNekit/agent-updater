@@ -26,7 +26,7 @@ users = [
 # Если .py — будем компилировать, если агент сам .exe; иначе «скриптовое» обновление
 UPDATE_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/agent.py"
 
-VERISONAPP = '1.0.1'
+VERISONAPP = '1.0.1.1'
 UPDATE_CHECK_INTERVAL = 60  # секунды
 
 @app.route('/version', methods=['GET'])
