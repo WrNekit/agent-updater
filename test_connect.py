@@ -25,7 +25,7 @@ users = [
 ]
 
 # Прямая (raw) ссылка на .exe или .py в вашем репо/хостинге (для автообновления)
-UPDATE_URL = "https://raw.githubusercontent.com/USER/REPO/main/agent.py"
+UPDATE_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/test_connect.py"
 
 VERISONAPP = '1.0.1'
 UPDATE_CHECK_INTERVAL = 60  # Проверяем обновления каждые 60 секунд
