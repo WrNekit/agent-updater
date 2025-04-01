@@ -144,6 +144,12 @@ def code_has_changed(new_data, is_py=False):
     """Сравниваем хэш текущего файла (exe или py) с new_data."""
     try:
         current_file = os.path.abspath(sys.argv[0])
+        
+        # Проверка на существование файла
+        if not os.path.exists(current_file):
+            print(f"[ERROR] Текущий файл {current_file} не существует!")
+            return True, None, None
+        
         with open(current_file, "rb") as f:
             current_data = f.read()
 
@@ -154,13 +160,17 @@ def code_has_changed(new_data, is_py=False):
             old_norm = current_data
             new_norm = new_data
 
+        # Вычисляем хэш для текущего и нового файла
         old_hash = compute_hash(old_norm)
         new_hash = compute_hash(new_norm)
-        return (old_hash != new_hash), old_hash, new_hash
-    except FileNotFoundError:
+
+        # Сравнение хэшей
+        return old_hash != new_hash, old_hash, new_hash
+    except FileNotFoundError as e:
+        print(f"[ERROR] Файл не найден: {e}")
         return True, None, None
     except Exception as e:
-        print("[ERROR] code_has_changed:", e)
+        print(f"[ERROR] Ошибка при вычислении хэша: {e}")
         return True, None, None
 
 def check_for_updates():
