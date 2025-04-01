@@ -189,6 +189,11 @@ def check_for_updates():
         else:
             changed, old_hash, new_hash = code_has_changed(new_data, is_py=False)
 
+        # Добавим отладочную информацию для диагностики
+        print(f"Old hash: {old_hash}")
+        print(f"New hash: {new_hash}")
+        print(f"Hashes changed: {changed}")
+
         if changed:
             return {
                 "update_available": True,
@@ -198,6 +203,7 @@ def check_for_updates():
                 "update_url": UPDATE_URL
             }
         else:
+            # Если хэши не изменились, возвращаем False
             return {"update_available": False}
     except Exception as e:
         print("[ERROR] check_for_updates exception:", e)
