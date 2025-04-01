@@ -143,7 +143,8 @@ def normalize_code(data):
 def code_has_changed(new_data, is_py=False):
     """Сравниваем хэш текущего файла (exe или py) с new_data."""
     try:
-        current_file = os.path.abspath(sys.argv[0])
+        # Используем __file__, чтобы указать путь к текущему скрипту агента
+        current_file = os.path.abspath(__file__)
         
         # Проверка на существование файла
         if not os.path.exists(current_file):
