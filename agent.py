@@ -103,7 +103,7 @@ users = [
 ]
 
 # Укажите прямую ссылку (raw) на ваш .exe или .py в репозитории / файлохранилище
-UPDATE_URL = "URL NA RAW GITHUB"
+UPDATE_URL = "https://raw.githubusercontent.com/WrNekit/agent-updater/refs/heads/main/agent.py"
 
 VERISONAPP = '1.0'
 UPDATE_CHECK_INTERVAL = 60  # каждые 60 секунд проверка обновлений
